@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>HAVAMANA - Weather Forecasting</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <style>
+      body,
+      html {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        font-family: sans-serif;
+        background: linear-gradient(to bottom, #87ceeb, #f0f8ff);
+        overflow: hidden;
+      }
+      #welcomePopup {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: white;
+        padding: 20px;
+        border-radius: 15px;
+        font-size: 2em;
+        font-weight: bold;
+        box-shadow: 0 0 15px rgba(0, 0, 0, 0.2);
+        z-index: 1000;
+      }
+      #controls {
+        position: absolute;
+        top: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        gap: 10px;
+        z-index: 100;
+      }
+      input,
+      select,
+      button {
+        padding: 10px;
+        border-radius: 8px;
+        border: 1px solid #ccc;
+        font-size: 1em;
+      }
+      #map {
+        position: absolute;
+        top: 120px;
+        left: 10px;
+        width: 25%;
+        height: 25%;
+        z-index: 1;
+        border-radius: 10px;
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+      }
+      #sky {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        z-index: 5;
+        pointer-events: none;
+      }
+      .cloud {
+        position: absolute;
+        background: white;
+        border-radius: 50%;
+        opacity: 0.9;
+        animation: moveClouds 60s linear infinite;
+      }
+      @keyframes moveClouds {
+        0% {
+          left: -200px;
+        }
+        100% {
+          left: 100%;
+        }
+      }
+      .sun {
+        position: absolute;
+        top: 60px;
+        left: 60px;
+        width: 120px;
+        height: 120px;
+        background: yellow;
+        border-radius: 50%;
+        animation: spinSun 30s linear infinite;
+      }
+      @keyframes spinSun {
+        100% {
+          transform: rotate(360deg);
+        }
+      }
+      .rainDrop {
+        position: absolute;
+        width: 2px;
+        height: 15px;
+        background: blue;
+        animation: fall linear infinite;
+      }
+      @keyframes fall {
+        0% {
+          transform: translateY(0);
+          opacity: 1;
+        }
+        100% {
+          transform: translateY(100vh);
+          opacity: 0;
+        }
+      }
+      #rainbow {
+        position: absolute;
+        bottom: 0;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 300px;
+        height: 150px;
+        border-radius: 50%;
+        background: conic-gradient(
+          red,
+          orange,
+          yellow,
+          green,
+          blue,
+          indigo,
+          violet
+        );
+        opacity: 0.7;
+        z-index: 4;
+        display: none;
+      }
+      #sevenDayForecast {
+        position: absolute;
+        bottom: 150px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        gap: 10px;
+        z-index: 10;
+        background: rgba(255, 255, 255, 0.8);
+        padding: 10px;
+        border-radius: 15px;
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+        overflow-x: auto;
+      }
+      .dayBox {
+        min-width: 120px;
+        text-align: center;
+        font-size: 1em;
+        font-weight: bold;
+        background: white;
+        border-radius: 10px;
+        padding: 10px;
+      }
+      .dashboard {
+        position: absolute;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        gap: 20px;
+        z-index: 10;
+        background: rgba(255, 255, 255, 0.8);
+        padding: 20px;
+        border-radius: 20px;
+        box-shadow: 0 0 20px rgba(0, 0, 0, 0.3);
+      }
+      .box {
+        min-width: 140px;
+        text-align: center;
+        font-size: 1.4em;
+        font-weight: bold;
+      }
+      #rainAlert {
+        position: absolute;
+        top: 140px;
+        left: 50%;
+        transform: translateX(-50%);
+        padding: 10px 20px;
+        font-size: 1.3em;
+        font-weight: bold;
+        border-radius: 10px;
+        z-index: 20;
+        color: white;
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="welcomePopup">🙏 WELCOME TO HAVAMANA.COM 🙏</div>
+
+    <div id="controls">
+      <input
+        id="locationInput"
+        type="text"
+        onclick="pronouncePlaceholder()"
+        placeholder="Enter location"
+      />
+      <input id="dateInput" type="date" />
+      <select id="hourSelect">
+        <option value="0">12:00 AM</option>
+        <option value="1">1:00 AM</option>
+        <option value="2">2:00 AM</option>
+        <option value="3">3:00 AM</option>
+        <option value="4">4:00 AM</option>
+        <option value="5">5:00 AM</option>
+        <option value="6">6:00 AM</option>
+        <option value="7">7:00 AM</option>
+        <option value="8">8:00 AM</option>
+        <option value="9">9:00 AM</option>
+        <option value="10">10:00 AM</option>
+        <option value="11">11:00 AM</option>
+        <option value="12">12:00 PM</option>
+        <option value="13">1:00 PM</option>
+        <option value="14">2:00 PM</option>
+        <option value="15">3:00 PM</option>
+        <option value="16">4:00 PM</option>
+        <option value="17">5:00 PM</option>
+        <option value="18">6:00 PM</option>
+        <option value="19">7:00 PM</option>
+        <option value="20">8:00 PM</option>
+        <option value="21">9:00 PM</option>
+        <option value="22">10:00 PM</option>
+        <option value="23">11:00 PM</option>
+      </select>
+      <select id="languageSelect" onchange="updatePlaceholder()">
+        <option value="en">English</option>
+        <option value="hi">Hindi</option>
+        <option value="kn">Kannada</option>
+        <option value="ta">Tamil</option>
+        <option value="te">Telugu</option>
+        <option value="ml">Malayalam</option>
+        <option value="bn">Bengali</option>
+        <option value="gu">Gujarati</option>
+        <option value="mr">Marathi</option>
+        <option value="pa">Punjabi</option>
+      </select>
+      <button onclick="fetchWeather()">Get Weather</button>
+    </div>
+
+    <div id="map"></div>
+    <div id="sky"></div>
+    <div id="rainbow"></div>
+    <div id="rainAlert"></div>
+    <div id="sevenDayForecast"></div>
+
+    <div class="dashboard">
+      <div class="box" id="temperatureBox"></div>
+      <div class="box" id="humidityBox"></div>
+      <div class="box" id="windBox"></div>
+      <div class="box" id="rainBox"></div>
+      <div class="box" id="rainProbBox"></div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script>
+      const placeholders = {
+        en: "Enter location",
+        hi: "अपना स्थान दर्ज करें",
+        kn: "ನಿಮ್ಮ ಸ್ಥಳವನ್ನು ತಿಳಿಸಿ",
+        ta: "உங்கள் இடத்தை உள்ளிடவும்",
+        te: "మీ స్థలాన్ని నమోదు చేయండి",
+        ml: "നിങ്ങളുടെ സ്ഥലം നൽകുക",
+        bn: "আপনার অবস্থান লিখুন",
+        gu: "તમારું સ્થાન દાખલ કરો",
+        mr: "आपले स्थान प्रविष्ट करा",
+        pa: "ਆਪਣਾ ਸਥਾਨ ਦਰਜ ਕਰੋ",
+      };
+
+      function speakText(text, lang = "en") {
+        const synth = window.speechSynthesis;
+        const utter = new SpeechSynthesisUtterance(text);
+        utter.lang = lang;
+        synth.speak(utter);
+      }
+      function updatePlaceholder() {
+        document.getElementById("locationInput").placeholder =
+          placeholders[document.getElementById("languageSelect").value];
+      }
+      function pronouncePlaceholder() {
+        speakText(
+          document.getElementById("locationInput").placeholder,
+          document.getElementById("languageSelect").value
+        );
+      }
+
+      function createSunAndClouds(showSun = true) {
+        const sky = document.getElementById("sky");
+        sky.innerHTML = "";
+        if (showSun) {
+          const sun = document.createElement("div");
+          sun.className = "sun";
+          sky.appendChild(sun);
+        }
+        for (let i = 0; i < 5; i++) {
+          const cloud = document.createElement("div");
+          cloud.className = "cloud";
+          cloud.style.width = 80 + Math.random() * 100 + "px";
+          cloud.style.height = 50 + Math.random() * 50 + "px";
+          cloud.style.top = 50 + Math.random() * 200 + "px";
+          cloud.style.animationDuration = 40 + Math.random() * 40 + "s";
+          sky.appendChild(cloud);
+        }
+      }
+      function createRainDrops() {
+        const sky = document.getElementById("sky");
+        for (let i = 0; i < 100; i++) {
+          const drop = document.createElement("div");
+          drop.className = "rainDrop";
+          drop.style.left = Math.random() * 100 + "vw";
+          drop.style.top = -(Math.random() * 100) + "px";
+          drop.style.animationDuration = 0.5 + Math.random() * 1.5 + "s";
+          sky.appendChild(drop);
+        }
+      }
+
+      let map = L.map("map").setView([20.5937, 78.9629], 5);
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution: "&copy; OpenStreetMap contributors",
+      }).addTo(map);
+      let marker;
+
+      async function fetchWeather() {
+        let location =
+          document.getElementById("locationInput").value || "Bengaluru";
+        const lang = document.getElementById("languageSelect").value;
+        const selectedHour = parseInt(
+          document.getElementById("hourSelect").value
+        );
+        const selectedDate =
+          document.getElementById("dateInput").value ||
+          new Date().toISOString().split("T")[0];
+        let lat = 12.97,
+          lon = 77.59;
+
+        // Geocode the input location
+        const geo = await fetch(
+          `https://nominatim.openstreetmap.org/search?format=json&q=${location}`
+        );
+        const geoData = await geo.json();
+        if (geoData.length > 0) {
+          lat = parseFloat(geoData[0].lat);
+          lon = parseFloat(geoData[0].lon);
+        }
+
+        if (marker) map.removeLayer(marker);
+        marker = L.marker([lat, lon]).addTo(map);
+        map.setView([lat, lon], 10);
+
+        const res = await fetch(
+          `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,relativehumidity_2m,windspeed_10m,precipitation,precipitation_probability&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max&timezone=Asia/Kolkata`
+        );
+        const data = await res.json();
+
+        const dateIndex = data.daily.time.indexOf(selectedDate);
+        const temp = data.daily.temperature_2m_max[dateIndex];
+        const precip = data.daily.precipitation_sum[dateIndex];
+        const prob = data.daily.precipitation_probability_max[dateIndex];
+
+        const hourIndex = data.hourly.time.findIndex((t) =>
+          t.startsWith(
+            selectedDate + "T" + String(selectedHour).padStart(2, "0")
+          )
+        );
+        const humidity = data.hourly.relativehumidity_2m[hourIndex] || 0;
+        const wind = data.hourly.windspeed_10m[hourIndex] || 0;
+        const hrProb = data.hourly.precipitation_probability[hourIndex] || 0;
+        const hrPrecip = data.hourly.precipitation[hourIndex] || 0;
+
+        document.getElementById(
+          "temperatureBox"
+        ).innerText = `🌡 Temp: ${temp}°C`;
+        document.getElementById(
+          "humidityBox"
+        ).innerText = `💧 Humidity: ${humidity}%`;
+        document.getElementById("windBox").innerText = `💨 Wind: ${wind} km/h`;
+        document.getElementById("rainBox").innerText = `🌧 Rain: ${precip} mm`;
+        document.getElementById(
+          "rainProbBox"
+        ).innerText = `☔ Rain Prob: ${prob}%`;
+
+        const showRain = hrProb > 50;
+        document.getElementById("sky").innerHTML = "";
+        document.getElementById("rainbow").style.display = "none";
+        createSunAndClouds(!showRain);
+        if (showRain) createRainDrops();
+        if (showRain)
+          document.getElementById("rainbow").style.display = "block";
+
+        const forecastDiv = document.getElementById("sevenDayForecast");
+        forecastDiv.innerHTML = "";
+        for (let i = 0; i < 7; i++) {
+          const box = document.createElement("div");
+          box.className = "dayBox";
+          const date = new Date(data.daily.time[i]).toDateString().slice(0, 10);
+          const maxT = data.daily.temperature_2m_max[i],
+            minT = data.daily.temperature_2m_min[i];
+          const rain = data.daily.precipitation_sum[i],
+            rainP = data.daily.precipitation_probability_max[i];
+          box.innerHTML = `<strong>${date}</strong><br>🌡 ${minT}-${maxT}°C<br>🌧 ${rain} mm<br>☔ ${rainP}%`;
+          forecastDiv.appendChild(box);
+        }
+
+        const alert = document.getElementById("rainAlert");
+        alert.style.display = "none";
+        if (prob < 30) {
+          alert.style.display = "block";
+          alert.style.backgroundColor = "green";
+          alert.innerText = "Low rain probability";
+        } else if (prob < 60) {
+          alert.style.display = "block";
+          alert.style.backgroundColor = "yellow";
+          alert.style.color = "black";
+          alert.innerText = "Moderate rain probability";
+        } else {
+          alert.style.display = "block";
+          alert.style.backgroundColor = "red";
+          alert.innerText = "High rain probability";
+        }
+
+        const hourMsg =
+          hrPrecip > 0 ? "Yes, it will rain." : "No rain expected.";
+        speakText(
+          `Hour ${selectedHour}:00 forecast. Temp ${temp}°C, Humidity ${humidity} percent, Wind ${wind} km/h. Rain probability ${hrProb} percent. ${hourMsg}`,
+          lang
+        );
+      }
+
+      window.onload = () => {
+        setTimeout(() => {
+          document.getElementById("welcomePopup").style.display = "none";
+        }, 3000);
+        updatePlaceholder();
+      };
+    </script>
+  </body>
+</html>
